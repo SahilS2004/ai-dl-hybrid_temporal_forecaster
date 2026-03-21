@@ -1,0 +1,20 @@
+# Data Processing & Visualization
+pandas
+numpy
+matplotlib
+seaborn
+tqdm
+
+# Advanced ML Models / Classical Stats
+scikit-learn
+statsmodels
+hmmlearn
+
+# Deep Learning Frameworks
+torch
+pytorch-forecasting
+transformers
+
+# Utilities & Hyperparameter Tuning
+optuna
+jupyterlab

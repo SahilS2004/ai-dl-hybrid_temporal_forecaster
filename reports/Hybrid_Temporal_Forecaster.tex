@@ -1,0 +1,51 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+
+\begin{document}
+
+\title{Hybrid Temporal Forecaster:\\ Fusing Gaussian Mixture Models with Time-Series Transformers}
+\author{\IEEEauthorblockN{Ayush Gupta}
+\IEEEauthorblockA{\textit{Advanced Machine Learning and Deep Learning} \\
+Project Phase 1-3 Evaluation \\
+March 2026}}
+
+\maketitle
+
+\begin{abstract}
+Modern operational forecasting demands deep resilience against volatility. While statistical models excel at baseline seasonality, they fail to anticipate chaotic regime shifts. Conversely, purely Deep Learning architectures excel at high-dimensional mappings but struggle to learn abstract probability distributions implicitly. In this project, we satisfy the critical need for hybrid interpretability by explicitly routing probability signals from a Gaussian Mixture Model (GMM) into a customized PyTorch Time-Series Transformer, resulting in significant predictive resilience. 
+\end{abstract}
+
+\begin{IEEEkeywords}
+Time-Series, Transformers, Gaussian Mixture Models, Support Vector Regression, Regime Shifts
+\end{IEEEkeywords}
+
+\section{Introduction and Literature Review}
+Accurate multi-step forecasting across non-stationary domains fundamentally requires architectural agility. Previous literature demonstrates that purely statistical methodologies like Support Vector Regression (SVR) utilizing Radial Basis Function kernels accurately decode temporal lags, but linearly disintegrate when unmodeled regime anomalies occur (such as pandemic lockdowns). 
+
+Current "State of the Art" (SOTA) research relies heavily on Transformer models implementing Multi-Head Self-Attention. However, Transformers initialized with naive positional encodings mathematically fail when sudden domain variances spike faster than the autoregressive sequence look-back. This project explicitly addresses this literature gap. Rather than allowing the neural network to "guess" the regime, we employ a probabilistic GMM to classify the sequence's rolling variance, effectively turning statistical probabilities into a deterministic context gate for the Transformer.
+
+\section{Methodology}
+\subsection{Exploratory Data Analysis and Feature Engineering}
+A fully characterized dataset representing Hourly PJM energy consumption over a 4-year horizon was utilized. By mathematically calculating the 24-hour rolling distributions, a distinctly bimodal anomaly structure was revealed—corresponding to historically known lockdowns and extreme heatwaves. Consequently, non-neural engineering extracted temporal vectors ($\sin$/$\cos$ periodicity), alongside multiple autoregressive Lags ($T-1$, $T-2$, $T-24$).
+
+\subsection{Model A: Advanced ML Baseline}
+An SVR utilizing explicit kernel tricks (RBF) to interpret high-dimensional lag mapping was established on 8,760 hours of structural data. 
+
+\subsection{Model B: Deep Learning Baseline}
+A \textit{TimeSeriesTransformer} was architected via PyTorch. We instituted strict regularizations including a Dropout rate of $0.2$, Xavier (Glorot) parameter initialization, Positional Encoding gradients, and autonomous Early Stopping monitored via validation gradients.
+
+\subsection{Model C: The Hybrid Integration}
+The breakthrough representation maps the GMM prediction matrix $P(State=0 | X_{var}), P(State=1 | X_{var})$ directly into the feature manifold before sequence projection. The Transformer’s self-attention weights adapt dynamically based on these exogenous Gaussian indicators.
+
+\section{Results and Ablation Study}
+Evaluation on a 3-month holdout set using both \textit{Mean Absolute Error} (MAE) and \textit{Root Mean Square Error} (RMSE) demonstrates the efficacy of the Attention mechanism combined with GMM routing. Model C reduced the absolute forecasting error when tested against sudden unmodeled spikes.
+
+\section{Failure Analysis and Conclusion}
+Despite algorithmic superiority, absolute failure analysis identified structural constraints when $1$-hr spikes breached physical modeling limits. Since the lag sequences solely rely on autoregression, unmeasured exogenous factors (e.g., explicit degrees Celsius) cause the model to lag reality heavily during immediate heatwave transitions. However, the Hybrid architecture proved mathematically sound and vastly enhanced interpretability.
+
+\end{document}
