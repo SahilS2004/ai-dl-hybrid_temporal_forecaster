@@ -102,7 +102,8 @@ def train_and_evaluate_hybrid(data_path, results_dir="reports"):
         'lag_1h', 'lag_2h', 'lag_24h', 'rolling_mean_24h', 'rolling_std_24h',
         'prob_state_0', 'prob_state_1' # <-- Passing Advanced ML outputs into Neural Network!
     ]
-    y_col = 'MW_Load'
+    # Dynamically grab the target to support dataset swapping
+    y_col = [col for col in train_df.columns if col not in X_cols][0]
     
     # Now continue entirely with Neural Network Logic
     print("Scaling and Sequencing Expanded Hybrid Matrix...")
