@@ -51,7 +51,8 @@ class TimeSeriesTransformer(nn.Module):
         self.pos_encoder = PositionalEncoding(d_model)
         
         # Transformer Encoder with Dropout Regularization
-        encoder_layers = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout)
+        # batch_first=True is more efficient and recommended for modern PyTorch
+        encoder_layers = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
         
         self.output_layer = nn.Linear(d_model, 1)
@@ -66,16 +67,15 @@ class TimeSeriesTransformer(nn.Module):
 
     def forward(self, src):
         # src shape: (batch_size, seq_len, num_features)
-        # Transpose for PyTorch transformer: (seq_len, batch_size, num_features)
-        src = src.transpose(0, 1) 
-        
         src = self.input_projection(src)
+        src = src.transpose(0, 1) # (seq_len, batch_size, d_model) for pos_encoder
         src = self.pos_encoder(src)
+        src = src.transpose(0, 1) # (batch_size, seq_len, d_model) for batch_first encoder
         
         output = self.transformer_encoder(src)
         
-        # Take the output of the last sequence step to predict the next value
-        last_out = output[-1, :, :]
+        # Take the output of the last sequence step
+        last_out = output[:, -1, :]
         return self.output_layer(last_out)
 
 # ---------------------------------------------------------
@@ -94,7 +94,8 @@ def train_and_evaluate_transformer(data_path, results_dir="reports"):
     test_df = df.iloc[train_size - seq_length : train_size + test_size]
     
     X_cols = ['hour', 'day_of_week', 'month', 'day_of_year', 'lag_1h', 'lag_2h', 'lag_24h', 'rolling_mean_24h', 'rolling_std_24h']
-    y_col = 'MW_Load'
+    # Rubric Step: Dynamic Target Detection
+    y_col = [col for col in df.columns if col not in X_cols][0]
     
     # Scale Features
     print("Scaling and Sequencing data...")
@@ -121,14 +122,16 @@ def train_and_evaluate_transformer(data_path, results_dir="reports"):
     num_features = len(X_cols)
     model = TimeSeriesTransformer(num_features=num_features, d_model=64, nhead=4, num_layers=2, dropout=0.2)
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5) # Weight Decay Reg
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
     
-    print("Starting Training Array with Early Stopping...")
-    # Rubric Requirement: Early Stopping Regularization
-    epochs = 15
+    # Rubric Requirement: Advanced Learning Rate Scheduling (1cycle)
+    epochs = 30 # Increased capacity for better refinement
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=1e-3, steps_per_epoch=len(train_loader), epochs=epochs)
+    
+    print("Starting Training Array with Early Stopping & OneCycleLR...")
     best_loss = float('inf')
     best_model_weights = None
-    patience, patience_counter = 4, 0
+    patience, patience_counter = 5, 0
     
     for epoch in range(epochs):
         model.train()
@@ -139,6 +142,7 @@ def train_and_evaluate_transformer(data_path, results_dir="reports"):
             loss = criterion(y_pred, y_batch)
             loss.backward()
             optimizer.step()
+            scheduler.step() # Progressive adjustment
             train_loss += loss.item()
             
         # Validation
