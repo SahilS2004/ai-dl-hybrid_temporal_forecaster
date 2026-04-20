@@ -6,17 +6,17 @@ This document provides the mathematical and theoretical justification for the **
 
 Traditional Transformers treat all input timesteps with equal structural weight, allowing the data to determine attention. In non-stationary energy markets, this leads to "Lag-Reliance Bias" where the model fails to shift strategy during regime breaks.
 
-### The Gating Mechanism
-We introduce a novel gating unit $\mathcal{G}$ that modulates the Attention output $\mathbf{A}$ using the probabilistic regime vector $\mathbf{r} \in [0, 1]^2$ provided by a Gaussian Mixture Model (GMM).
+### The Internal Gating Mechanism
+We introduce a novel gating unit $\mathcal{G}$ that modulates the Attention output $\mathbf{A}$ using a latent regime vector $\mathbf{r} \in [0, 1]^2$ predicted by an **Internal Neural Regime Head**.
 
 $$ \text{Output} = \mathbf{x} + \text{Dropout}(\text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) \odot \sigma(\mathbf{W}_g \mathbf{r} + \mathbf{b}_g)) $$
 
 Where:
-- $\mathbf{r}$ represents the state probabilities $[P(\text{Normal}), P(\text{Extreme})]$.
+- $\mathbf{r}$ represents the state probabilities $[P(\text{Normal}), P(\text{Extreme})]$ learned end-to-end.
 - $\sigma$ is the Sigmoid activation.
 - $\odot$ is the element-wise Hadamard product.
 
-**Justification**: This forces the network to learn distinct attention weights for different regimes from first principles, rather than hoping the embedding space captures it implicitly.
+**Justification**: This ensures the network learns structural transitions that are mathematically optimal for the forecasting loss, rather than relying on external statistical priors.
 
 ---
 

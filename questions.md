@@ -434,15 +434,17 @@ worst_spikes = test_df.nlargest(5, 'abs_diff')
 
 Imagine you're a weather forecaster:
 
-1. **Step 1 (Feature Engineering):** You look at your instruments — thermometer (temperature/hour), calendar (day/month), and your notebook where you wrote yesterday's readings (lags).
+1. **Step 1 (Feature Engineering):** You look at your instruments — thermometers, calendars, and your notebook where you wrote yesterday's readings (lags).
 
-2. **Step 2 (GMM = Your Experienced Colleague):** Before you make your forecast, your experienced colleague glances at the recent weather charts and says: "I'm 85% sure we're in a normal weather pattern, but there's a 15% chance a storm is brewing." He doesn't predict the temperature — he just tells you the STATE of the weather.
+2. **Step 2 (GMM = Your High-Tech Radar):** You have a radar that scans the whole sky. It doesn't tell you the temperature; it just says: "There's an 85% chance of a clear day, but a 15% chance of a severe storm." 
 
-3. **Step 3 (Transformer = Your Brain):** Now YOU make the forecast. You look at all your instruments AND your colleague's regime assessment. If he says "storm coming," you know to expect wild swings and you weight recent data more heavily. If he says "all normal," you trust yesterday's pattern will repeat.
+3. **Step 3 (The Regime-Gate = Automatic Switch):** Now, instead of you just "thinking" about what the radar said, your brain has a **Safety Switch (The Gate)**. If the radar sends a "Storm" signal, that switch automatically 'opens' a specific part of your brain that handles crisis and 'dampens' the part that expects everything to be normal.
 
-4. **Step 4 (Output):** You announce: "Tomorrow's energy demand will be 32,450 MW."
+4. **Step 4 (Transformer = Your Logic):** Your neural logic then processes all the instrument data through this gated filter. Because the gate is open for the "Storm," you automatically focus much more on the most recent 1-hour changes rather than what happened last week.
 
-**The key insight:** Your colleague (GMM) and your brain (Transformer) have DIFFERENT skills. The GMM sees the big picture (regime). The Transformer sees the fine details (exact numbers). Together, they're better than either alone.
+5. **Step 5 (Output):** You announce: "Tomorrow's energy demand will be 32,450 MW."
+
+**The key insight:** In the old model, you just looked at the radar. In **YOUR** advanced model, the radar is hard-wired into your brain's attention system via the **Regime Gate**. It doesn't just give you info; it changes how you think!
 
 ---
 

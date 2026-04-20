@@ -4,7 +4,6 @@ from torch.utils.data import DataLoader, TensorDataset
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-from sklearn.mixture import GaussianMixture
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import matplotlib.pyplot as plt
 import os
@@ -15,10 +14,9 @@ from advanced_hybrid_model import AdvancedHybridForecaster
 # =========================================================
 # 1. ADVANCED REGULARIZATION (Level 10)
 # =========================================================
-def timeseries_mixup(x, y, regime, alpha=0.2):
+def timeseries_mixup(x, y, alpha=0.2):
     """
     Implements MixUp for Time-Series (Linear interpolation of sequences).
-    This serves as a high-level regularization technique for robustness.
     """
     if alpha > 0:
         lam = np.random.beta(alpha, alpha)
@@ -30,29 +28,27 @@ def timeseries_mixup(x, y, regime, alpha=0.2):
 
     mixed_x = lam * x + (1 - lam) * x[index, :]
     mixed_y = lam * y + (1 - lam) * y[index]
-    mixed_regime = lam * regime + (1 - lam) * regime[index, :]
     
-    return mixed_x, mixed_y, mixed_regime
+    return mixed_x, mixed_y
 
 # =========================================================
 # 2. CURRICULUM LEARNING STRATEGY (Level 10)
 # =========================================================
-def get_curriculum_loaders(X, y, regime, batch_size=64):
+def get_curriculum_loaders(X, y, batch_size=64):
     """
-    Splits data into 'Easy' (Normal Regime) and 'Hard' (Extreme Regime).
+    Splits data into 'Easy' (Normal) and 'Hard' (Extreme) based on volatility.
+    Note: We use rolling_std directly for curriculum splitting now.
     """
-    # regime is [N, Seq, 2]. We use the mean prob of state 1 (Extreme) across the sequence.
-    extreme_scores = regime[:, :, 1].mean(dim=1)
+    std_col_idx = -1 # assuming rolling_std is the last feature
+    volatility = X[:, :, std_col_idx].mean(dim=1)
     
-    # Simple split: 50% easiest, 50% hard
-    threshold = torch.median(extreme_scores)
+    threshold = torch.median(volatility)
+    easy_mask = volatility <= threshold
+    hard_mask = volatility > threshold
     
-    easy_mask = extreme_scores <= threshold
-    hard_mask = extreme_scores > threshold
-    
-    easy_loader = DataLoader(TensorDataset(X[easy_mask], y[easy_mask], regime[easy_mask]), batch_size=batch_size, shuffle=True)
-    hard_loader = DataLoader(TensorDataset(X[hard_mask], y[hard_mask], regime[hard_mask]), batch_size=batch_size, shuffle=True)
-    full_loader = DataLoader(TensorDataset(X, y, regime), batch_size=batch_size, shuffle=True)
+    easy_loader = DataLoader(TensorDataset(X[easy_mask], y[easy_mask]), batch_size=batch_size, shuffle=True)
+    hard_loader = DataLoader(TensorDataset(X[hard_mask], y[hard_mask]), batch_size=batch_size, shuffle=True)
+    full_loader = DataLoader(TensorDataset(X, y), batch_size=batch_size, shuffle=True)
     
     return easy_loader, hard_loader, full_loader
 
@@ -69,41 +65,31 @@ def train_novel_model(data_path="data/processed/featured_data.csv", results_dir=
     X_cols = ['hour', 'day_of_week', 'month', 'day_of_year', 'lag_1h', 'lag_2h', 'lag_24h', 'rolling_mean_24h', 'rolling_std_24h']
     target_col = [col for col in df.columns if col not in X_cols][0]
     
-    # 1. GMM Regime Detection (Rigorous probabilistic clustering)
-    print("--- Stage 1: GMM Probabilistic Regime Extraction ---")
-    gmm_scaler = StandardScaler()
-    gmm_input = gmm_scaler.fit_transform(df[['rolling_mean_24h', 'rolling_std_24h']])
-    gmm = GaussianMixture(n_components=2, covariance_type='full', random_state=42)
-    gmm.fit(gmm_input)
-    gmm_probs = gmm.predict_proba(gmm_input)
-    
-    df['prob_normal'] = gmm_probs[:, 0]
-    df['prob_extreme'] = gmm_probs[:, 1]
-    
+    # 1. Neural State Identification (Joint Learning)
+    print("--- Stage 1: Initializing Neural Regime Classifier ---")
+    # GMM is removed. The model now identifies states during training.
+
     # 2. Sequential Preparation
     seq_length = 24
-    def create_sequences_with_regime(data, targets, regimes, seq_len):
-        xs, ys, rs = [], [], []
+    def create_sequences(data, targets, seq_len):
+        xs, ys = [], []
         for i in range(len(data) - seq_len):
             xs.append(data[i:(i + seq_len)])
             ys.append(targets[i + seq_len])
-            rs.append(regimes[i:(i + seq_len)])
-        return np.array(xs), np.array(ys), np.array(rs)
+        return np.array(xs), np.array(ys)
 
     X_scaler = StandardScaler()
     Y_scaler = StandardScaler()
     
     X_scaled = X_scaler.fit_transform(df[X_cols])
     Y_scaled = Y_scaler.fit_transform(df[[target_col]])
-    R_data = df[['prob_normal', 'prob_extreme']].values
     
-    X_seq, Y_seq, R_seq = create_sequences_with_regime(X_scaled, Y_scaled, R_data, seq_length)
+    X_seq, Y_seq = create_sequences(X_scaled, Y_scaled, seq_length)
     
     # Split
     split = int(0.8 * len(X_seq))
     X_train, X_test = torch.FloatTensor(X_seq[:split]), torch.FloatTensor(X_seq[split:])
     Y_train, Y_test = torch.FloatTensor(Y_seq[:split]), torch.FloatTensor(Y_seq[split:])
-    R_train, R_test = torch.FloatTensor(R_seq[:split]), torch.FloatTensor(R_seq[split:])
     
     # 3. Model Initialization (Novel Architecture)
     model = AdvancedHybridForecaster(num_features=len(X_cols))
@@ -111,10 +97,10 @@ def train_novel_model(data_path="data/processed/featured_data.csv", results_dir=
     criterion = nn.HuberLoss() # Robust to outliers spikes identified in failure analysis
     
     # 4. Curriculum Learning Execution
-    easy_loader, hard_loader, full_loader = get_curriculum_loaders(X_train, Y_train, R_train)
+    easy_loader, hard_loader, full_loader = get_curriculum_loaders(X_train, Y_train)
     
     print("--- Stage 2: Curriculum Learning (Easy -> Hard -> Full) ---")
-    epochs_per_stage = [2, 2, 5] # Reduced for fast completion, still maintains curriculum logic
+    epochs_per_stage = [2, 2, 5] 
     best_mae = float('inf')
     
     for stage, loader in enumerate([easy_loader, hard_loader, full_loader]):
@@ -122,13 +108,13 @@ def train_novel_model(data_path="data/processed/featured_data.csv", results_dir=
         for epoch in range(epochs_per_stage[stage]):
             model.train()
             total_loss = 0
-            for xb, yb, rb in loader:
+            for xb, yb in loader:
                 # Apply MixUp for stage 3
                 if stage == 2:
-                    xb, yb, rb = timeseries_mixup(xb, yb, rb)
+                    xb, yb = timeseries_mixup(xb, yb)
                 
                 optimizer.zero_grad()
-                pred = model(xb, rb)
+                pred = model(xb)
                 loss = criterion(pred, yb)
                 loss.backward()
                 optimizer.step()
@@ -137,7 +123,7 @@ def train_novel_model(data_path="data/processed/featured_data.csv", results_dir=
             # Eval
             model.eval()
             with torch.no_grad():
-                test_pred = model(X_test, R_test)
+                test_pred = model(X_test)
                 test_mae = mean_absolute_error(Y_test.numpy(), test_pred.numpy())
                 if test_mae < best_mae:
                     best_mae = test_mae
@@ -155,10 +141,10 @@ def train_novel_model(data_path="data/processed/featured_data.csv", results_dir=
     
     # 1. Prediction Intervals (Robustness)
     with torch.no_grad():
-        preds_base = Y_scaler.inverse_transform(model(X_test, R_test).numpy())
+        preds_base = Y_scaler.inverse_transform(model(X_test).numpy())
         # Noise Robustness Test (OOD simulation)
         X_noisy = X_test + torch.randn_like(X_test) * 0.1
-        preds_noisy = Y_scaler.inverse_transform(model(X_noisy, R_test).numpy())
+        preds_noisy = Y_scaler.inverse_transform(model(X_noisy).numpy())
         noise_mae = mean_absolute_error(Y_scaler.inverse_transform(Y_test), preds_noisy)
         print(f"Robustness Check: MAE with 10% Noise = {noise_mae:.2f}")
 
@@ -166,8 +152,8 @@ def train_novel_model(data_path="data/processed/featured_data.csv", results_dir=
     print("Generating Attention Heatmaps for Regime Analysis...")
     sample_idx = 100
     with torch.no_grad():
-        _ = model(X_test[sample_idx:sample_idx+1], R_test[sample_idx:sample_idx+1])
-        attn = model.attn_map[0].numpy() # [Head, Seq, Seq] -> simplified for demo
+        _ = model(X_test[sample_idx:sample_idx+1])
+        attn = model.attn_map[0].numpy() 
         
     plt.figure(figsize=(10, 8))
     plt.imshow(attn, cmap='viridis')

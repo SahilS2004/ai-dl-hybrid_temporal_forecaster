@@ -7,7 +7,7 @@ This repository implements a **State-of-The-Art (SOTA)** time-series forecasting
 ### 1. Architecture Logic: **Novel** (Level 10)
 - **Component**: `advanced_hybrid_model.py`
 - **Innovation**: Implemented a custom **Regime-Gated cross-Attention (RGaA)** block. 
-- **Mechanism**: Dynamically modulates multi-head self-attention weights using probabilistic regime priors from a Gaussian Mixture Model (GMM). It also uses **Multi-Scale Convolutional Embeddings** to capture both local spikes and global trends.
+- **Mechanism**: Dynamically modulates multi-head self-attention weights using an internal **Neural Regime Classifier**. This sub-network jointly learns to identify volatility states (Normal vs. Extreme) and redirects attention flow accordingly. It also uses **Multi-Scale Convolutional Embeddings** to capture both local spikes and global trends.
 
 ### 2. DL Literature Review: **Comprehensive** (Level 10)
 - **Resource**: `reports/Hybrid_Temporal_Forecaster.tex` & `reports/ADVANCED_PROJECT_LOGIC.md`

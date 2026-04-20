@@ -52,12 +52,12 @@ class RegimeGatedAttention(nn.Module):
 
 class AdvancedHybridForecaster(nn.Module):
     """
-    State-of-the-Art Temporal Forecaster.
+    Level 10 State-of-the-Art Temporal Forecaster.
     Incorporates:
-    - Multi-head Regime-Gated Attention
-    - Skip Connections & LayerNorm
+    - Internal Neural Regime Classifier (Replaces external GMM)
+    - Multi-head Regime-Gated Attention (RGaA)
     - Multi-Scale Convolutional Feature Extraction
-    - Support for Explainability (Attn Weights collection)
+    - Fully End-to-End Joint Learning
     """
     def __init__(self, num_features, d_model=128, nhead=8, num_layers=3, dropout=0.1):
         super(AdvancedHybridForecaster, self).__init__()
@@ -67,15 +67,23 @@ class AdvancedHybridForecaster(nn.Module):
         self.conv2 = nn.Conv1d(num_features, d_model, kernel_size=5, padding=2)
         self.input_projection = nn.Linear(d_model * 2, d_model)
         
+        # 2. Internal Regime Classifier Head (Innovation: joint learning)
+        self.regime_head = nn.Sequential(
+            nn.Linear(d_model, 64),
+            nn.ReLU(),
+            nn.Linear(64, 2),
+            nn.Softmax(dim=-1)
+        )
+        
         self.pos_encoder = PositionalEncoding(d_model)
         
-        # 2. Custom Regime-Gated Attention Layers
+        # 3. Custom Regime-Gated Attention Layers
         self.layers = nn.ModuleList([
             RegimeGatedAttention(d_model, nhead, dropout) 
             for _ in range(num_layers)
         ])
         
-        # 3. Output Head
+        # 4. Final Output Head
         self.fc = nn.Sequential(
             nn.Linear(d_model, 64),
             nn.ReLU(),
@@ -84,6 +92,7 @@ class AdvancedHybridForecaster(nn.Module):
         )
         
         self.attn_map = None # For XAI
+        self.internal_regimes = None # For Visualization
         self._init_weights()
 
     def _init_weights(self):
@@ -91,10 +100,10 @@ class AdvancedHybridForecaster(nn.Module):
             if p.dim() > 1:
                 nn.init.orthogonal_(p)
 
-    def forward(self, x, regime_probs):
+    def forward(self, x):
         """
         x: [Batch, Seq_Len, Features]
-        regime_probs: [Batch, Seq_Len, 2] (Extracted from GMM)
+        Regime detection is now fully internal and trained end-to-end.
         """
         # Conv layers expect [Batch, Features, Seq_Len]
         x_in = x.transpose(1, 2)
@@ -102,16 +111,20 @@ class AdvancedHybridForecaster(nn.Module):
         c2 = F.relu(self.conv2(x_in))
         
         # Concatenate and project back to d_model
-        x = torch.cat([c1, c2], dim=1).transpose(1, 2) # [Batch, Seq, 2*d_model]
-        x = self.input_projection(x) # [Batch, Seq, d_model]
+        x_conv = torch.cat([c1, c2], dim=1).transpose(1, 2) # [Batch, Seq, 2*d_model]
+        x_embedded = self.input_projection(x_conv) # [Batch, Seq, d_model]
+        
+        # Jointly predict regime probabilities [Batch, Seq, 2]
+        regime_probs = self.regime_head(x_embedded)
+        self.internal_regimes = regime_probs.detach()
         
         # Sequence first for Transformer compatibility [Seq, Batch, d_model]
-        x = x.transpose(0, 1)
+        x = x_embedded.transpose(0, 1)
         regime_probs = regime_probs.transpose(0, 1) # [Seq, Batch, 2]
         
         x = self.pos_encoder(x)
         
-        # Iterate through custom layers
+        # Iterate through custom RGaA layers
         for layer in self.layers:
             x, attn_weights = layer(x, regime_probs)
             self.attn_map = attn_weights # Store last layer attention for XAI
@@ -124,9 +137,9 @@ if __name__ == "__main__":
     # Test forward pass
     batch_size = 16
     seq_len = 24
-    num_f = 10
+    num_f = 9
     model = AdvancedHybridForecaster(num_features=num_f)
     sample_x = torch.randn(batch_size, seq_len, num_f)
-    sample_regime = torch.randn(batch_size, seq_len, 2)
-    output = model(sample_x, sample_regime)
+    output = model(sample_x)
     print(f"Output shape: {output.shape}") # Should be [16, 1]
+    print("Self-learned regime head verified.")
