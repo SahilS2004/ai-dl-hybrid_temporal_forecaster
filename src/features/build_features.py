@@ -44,9 +44,22 @@ def create_features(filepath_in, filepath_out):
     print(f"Saved processed data to {filepath_out} ({len(df)} rows)")
 
 if __name__ == "__main__":
-    raw_path = "data/raw/PJME_hourly.csv"
-    if not os.path.exists(raw_path):
-        # Fallback to synthetic if download failed
-        raw_path = "data/raw/Synthetic_Energy_Hourly.csv"
-        
-    create_features(raw_path, "data/processed/featured_data.csv")
+    # Prioritize Real-World data if available, fallback to Synthetic
+    paths_to_check = [
+        "data/raw/RealWorld_Energy.csv",
+        "data/raw/PJME_hourly.csv",
+        "data/raw/Synthetic_Energy_Hourly.csv"
+    ]
+    
+    raw_path = None
+    for p in paths_to_check:
+        if os.path.exists(p):
+            raw_path = p
+            break
+            
+    if raw_path:
+        print(f"✅ Found dataset: {raw_path}")
+        # We save it to a specific file so the training script knows to use the latest processed data
+        create_features(raw_path, "data/processed/featured_data.csv")
+    else:
+        print("❌ No datasets found in data/raw/. Please run src/data/make_real_energy.py first.")
