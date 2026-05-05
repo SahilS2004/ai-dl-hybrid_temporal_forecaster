@@ -1,12 +1,11 @@
 Model,MAE (MW),RMSE (MW),Innovation
-Model A (ML Only: SVR),1452.3,1820.5,Classical Regression
-Model B (DL Only: Transformer),980.1,1210.4,Pure Sequence Learning
-Model C (Synergistic Hybrid),720.5,910.2,ML-State + DL-Residual
+Model A (ML Only: SVR),388.91,554.05,Classical Regression
+Model B (DL Only: Transformer),303.49,385.02,Pure Sequence Learning
+Model C (Synergistic Hybrid),224.81,285.2,ML-State + DL-Residual
 
 
 DIAGNOSTIC ANALYSIS:
-The Synergistic Hybrid provides a 26.49% improvement in MAE.
+The Synergistic Hybrid provides a 25.93% improvement in MAE.
 - Removing the GMM Regime Detector causes the model to lose context of grid volatility.
 - Removing the Transformer causes the model to miss high-frequency temporal spikes.
 - SYNERGY: The whole is greater than the sum because components handle distinct spectral densities.
-
